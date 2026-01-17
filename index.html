@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Увеличение изображения 3x</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .info {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info p {
+            margin: 5px 0;
+            color: #555;
+        }
+        
+        .preview-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .preview-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .preview-box {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            background: #fafafa;
+        }
+        
+        .preview-box h3 {
+            margin-bottom: 10px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+        
+        .preview-box canvas {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .progress {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .status {
+            text-align: center;
+            color: #666;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ Увеличение изображения в 3 раза</h1>
+        
+        <div class="info">
+            <p><strong>Исходное изображение:</strong> <span id="originalSize">Загрузите изображение</span></p>
+            <p><strong>Новое разрешение:</strong> <span id="newSize">-</span></p>
+            <p><strong>Метод:</strong> Бикубическая интерполяция с улучшением резкости</p>
+        </div>
+        
+        <div class="controls">
+            <button onclick="document.getElementById('fileInput').click()">
+                📁 Выбрать изображение
+            </button>
+            <button id="processBtn2x" onclick="processImage(2)" disabled>
+                ✨ Увеличить 2x
+            </button>
+            <button id="processBtn3x" onclick="processImage(3)" disabled>
+                ✨ Увеличить 3x
+            </button>
+            <button id="processBtn4x" onclick="processImage(4)" disabled>
+                ✨ Увеличить 4x
+            </button>
+            <button id="downloadBtn" onclick="downloadImage()" disabled>
+                💾 Скачать результат
+            </button>
+        </div>
+        
+        <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="loadImage(event)">
+        
+        <div class="progress" id="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="preview-container">
+            <div class="preview-box">
+                <h3>Оригинал</h3>
+                <canvas id="originalCanvas"></canvas>
+            </div>
+            <div class="preview-box">
+                <h3>Увеличенное изображение <span id="scaleLabel">-</span></h3>
+                <canvas id="resultCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let originalImage = null;
+        let currentScaleFactor = 3;
+        
+        function loadImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    originalImage = img;
+                    displayOriginal();
+                    updateInfo(3);
+                    document.getElementById('processBtn2x').disabled = false;
+                    document.getElementById('processBtn3x').disabled = false;
+                    document.getElementById('processBtn4x').disabled = false;
+                    document.getElementById('status').textContent = 'Изображение загружено! Выберите степень увеличения';
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function displayOriginal() {
+            const canvas = document.getElementById('originalCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            const maxDisplay = 500;
+            const scale = Math.min(maxDisplay / originalImage.width, maxDisplay / originalImage.height, 1);
+            
+            canvas.width = originalImage.width * scale;
+            canvas.height = originalImage.height * scale;
+            
+            ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
+        }
+        
+        function updateInfo(scaleFactor) {
+            document.getElementById('originalSize').textContent = 
+                `${originalImage.width} × ${originalImage.height} px`;
+            document.getElementById('newSize').textContent = 
+                `${originalImage.width * scaleFactor} × ${originalImage.height * scaleFactor} px`;
+        }
+        
+        function processImage(scaleFactor) {
+            if (!originalImage) return;
+            
+            currentScaleFactor = scaleFactor;
+            updateInfo(scaleFactor);
+            
+            document.getElementById('processBtn2x').disabled = true;
+            document.getElementById('processBtn3x').disabled = true;
+            document.getElementById('processBtn4x').disabled = true;
+            document.getElementById('progress').style.display = 'block';
+            document.getElementById('status').textContent = `Обработка изображения (${scaleFactor}x)...`;
+            
+            setTimeout(() => {
+                upscaleImage(scaleFactor);
+            }, 100);
+        }
+        
+        function upscaleImage(scaleFactor) {
+            const newWidth = originalImage.width * scaleFactor;
+            const newHeight = originalImage.height * scaleFactor;
+            
+            // Создаём промежуточный canvas с оригинальным изображением
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = originalImage.width;
+            tempCanvas.height = originalImage.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(originalImage, 0, 0);
+            
+            // Получаем данные оригинального изображения
+            const originalData = tempCtx.getImageData(0, 0, originalImage.width, originalImage.height);
+            
+            // Создаём canvas для результата
+            const resultCanvas = document.getElementById('resultCanvas');
+            resultCanvas.width = newWidth;
+            resultCanvas.height = newHeight;
+            const resultCtx = resultCanvas.getContext('2d', { alpha: false });
+            
+            // Применяем бикубическую интерполяцию
+            resultCtx.imageSmoothingEnabled = true;
+            resultCtx.imageSmoothingQuality = 'high';
+            resultCtx.drawImage(originalImage, 0, 0, newWidth, newHeight);
+            
+            updateProgress(50);
+            
+            // Применяем улучшение резкости
+            const imageData = resultCtx.getImageData(0, 0, newWidth, newHeight);
+            const sharpenedData = applySharpen(imageData);
+            resultCtx.putImageData(sharpenedData, 0, 0);
+            
+            updateProgress(100);
+            
+            document.getElementById('scaleLabel').textContent = `(${scaleFactor}x)`;
+            document.getElementById('status').textContent = `✅ Готово! Изображение увеличено в ${scaleFactor} раза`;
+            document.getElementById('downloadBtn').disabled = false;
+            document.getElementById('processBtn2x').disabled = false;
+            document.getElementById('processBtn3x').disabled = false;
+            document.getElementById('processBtn4x').disabled = false;
+            
+            setTimeout(() => {
+                document.getElementById('progress').style.display = 'none';
+            }, 1000);
+        }
+        
+        function applySharpen(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            const output = new Uint8ClampedArray(data);
+            
+            // Матрица повышения резкости
+            const kernel = [
+                0, -0.5, 0,
+                -0.5, 3, -0.5,
+                0, -0.5, 0
+            ];
+            
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    for (let c = 0; c < 3; c++) {
+                        let sum = 0;
+                        for (let ky = -1; ky <= 1; ky++) {
+                            for (let kx = -1; kx <= 1; kx++) {
+                                const idx = ((y + ky) * width + (x + kx)) * 4 + c;
+                                const kernelIdx = (ky + 1) * 3 + (kx + 1);
+                                sum += data[idx] * kernel[kernelIdx];
+                            }
+                        }
+                        const idx = (y * width + x) * 4 + c;
+                        output[idx] = Math.max(0, Math.min(255, sum));
+                    }
+                }
+            }
+            
+            return new ImageData(output, width, height);
+        }
+        
+        function updateProgress(percent) {
+            document.getElementById('progressBar').style.width = percent + '%';
+        }
+        
+        function downloadImage() {
+            const canvas = document.getElementById('resultCanvas');
+            const link = document.createElement('a');
+            link.download = `upscaled_${currentScaleFactor}x_image.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        // Автоматически загружаем изображение, загруженное пользователем
+        window.addEventListener('load', async () => {
+            try {
+                const imageData = await window.fs.readFile('image.jpg');
+                const blob = new Blob([imageData], { type: 'image/jpeg' });
+                const url = URL.createObjectURL(blob);
+                
+                const img = new Image();
+                img.onload = function() {
+                    originalImage = img;
+                    displayOriginal();
+                    updateInfo(3);
+                    document.getElementById('processBtn2x').disabled = false;
+                    document.getElementById('processBtn3x').disabled = false;
+                    document.getElementById('processBtn4x').disabled = false;
+                    document.getElementById('status').textContent = 'Изображение загружено! Выберите степень увеличения';
+                };
+                img.src = url;
+            } catch (error) {
+                document.getElementById('status').textContent = 'Выберите изображение для начала работы';
+            }
+        });
+    </script>
+</body>
+</html>
